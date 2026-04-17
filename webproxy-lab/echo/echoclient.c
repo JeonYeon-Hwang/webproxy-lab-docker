@@ -1,4 +1,4 @@
-// #define _GNU_SOURCE  
+#define _POSIX_C_SOURCE 200112L
 #include "../csapp.h"
 
 int my_open_clientfd(char *hostname, char *port);

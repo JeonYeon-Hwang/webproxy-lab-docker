@@ -1,4 +1,4 @@
-// #define _GNU_SOURCE  
+#define _POSIX_C_SOURCE 200112L
 #include "../csapp.h"
 
 void echo(int connfd);
@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
     // listen할 창구를 생성
     listenfd = my_open_listenfd(argv[1]);
-    printf("서버가 %s 주소로 접속 대기 상태입니다...", argv[1]);
+    printf("서버가 %s 주소로 접속 대기 상태입니다...\n", argv[1]);
     while(1){
         clientlen = sizeof(struct sockaddr_storage);
         // listen 소켓에서 받은 클라이언트 addrinfo를 바탕으로 대화용 소켓 생성 (통로: connfd)
