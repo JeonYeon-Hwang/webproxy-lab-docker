@@ -1,10 +1,4 @@
-#define _GNU_SOURCE  
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>   
-#include <sys/types.h>
-#include <sys/socket.h>
+// #define _GNU_SOURCE  
 #include "../csapp.h"
 
 int my_open_clientfd(char *hostname, char *port);
@@ -25,8 +19,8 @@ int main(int argc, char **argv)
     }
 
     //이제 각각 할당(포인터임, 어딘가에 저장된 argv의 참조 char 주소값을 할당)
-    host = argv[0];
-    port = argv[1];
+    host = argv[1];
+    port = argv[2];
 
     // 연결이 실현되고, 성공시 양의 정수값(인덱스) 반환
     clientfd = my_open_clientfd(host, port);
@@ -72,7 +66,7 @@ int my_open_clientfd(char *hostname, char *port){
         printf("%s 주소에 연결 시도 중... \n", ip_string);
         // 클라이언트가 해당 ip에 맞는 socket을 생성
         // 소캣이 생성 실패하여 -1을 반환한다면?
-        if(clientfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol) < 0){
+        if((clientfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0){
             continue;
         }
 

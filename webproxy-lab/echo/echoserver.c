@@ -1,10 +1,4 @@
-#define _GNU_SOURCE  
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <netdb.h>   
-#include <sys/types.h>
-#include <sys/socket.h>
+// #define _GNU_SOURCE  
 #include "../csapp.h"
 
 void echo(int connfd);
@@ -40,6 +34,7 @@ int main(int argc, char **argv)
         printf("다음 클라이언트가 접속하였습니다: %s, %s \n", client_hostname, client_port);
         
         // 해당 클라이언트 대화용 소켓(connfd)으로 소통 진행
+        echo(connfd);
         Close(connfd);
     }  
     exit(0);
@@ -50,7 +45,18 @@ int main(int argc, char **argv)
 
 void echo(int connfd)
 {
+    size_t n;
+    char buf[MAXLINE];
+    rio_t rio;
 
+    // rio를 connfd 인덱스를 가진 소켓과 연결
+    Rio_readinitb(&rio, connfd);
+    // n이 0이 되기 전 까지 읽음
+    while((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0){
+        // connfd로 해당 소켓으로 보내줌
+        printf("다음을 재전송함: %s", buf);
+        Rio_writen(connfd, buf, n);
+    }
 }
 
 
@@ -91,7 +97,7 @@ int my_open_listenfd(char *port)
 
         // 생성 성공 시 => bind를 함(소켓에 해당 listenfd를 연결)
         if(bind(listenfd, p->ai_addr, p->ai_addrlen) == 0){
-            printf("%s 주소에 bind 실패. \n");
+            printf("주소에 bind 실패. \n");
             break;
         }
         Close(listenfd);
