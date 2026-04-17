@@ -30,6 +30,20 @@ int main(int argc, char **argv)
 
     // 연결이 실현되고, 성공시 양의 정수값(인덱스) 반환
     clientfd = my_open_clientfd(host, port);
+    Rio_readinitb(&rio, clientfd);
+
+    while(Fgets(buf, MAXLINE, stdin) != NULL){
+        // 서버로 해당 buf를 발송
+        Rio_writen(clientfd, buf, strlen(buf));
+        // 서버에서의 응답을 buf에 넣음
+        Rio_readlineb(&rio, buf, MAXLINE);
+        // 이 buf를 출력
+        Fputs(buf, stdout);
+    }
+
+    Close(clientfd);
+    exit(0);
+    printf("서버와 연결이 종료되었습니다.");
 }
 
 
@@ -73,8 +87,11 @@ int my_open_clientfd(char *hostname, char *port){
 
     // 힙 할당해제
     Freeaddrinfo(listp);
-    if(!p)
+    if(!p){
+        printf("open_client_fd가 연결에 실패하였습니다. \n");
         return -1;
-    else
+    }
+    else{
         return clientfd;
+    }      
 }
