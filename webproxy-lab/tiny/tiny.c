@@ -109,5 +109,21 @@ void doit(int fd){
     /*추후 상세 작성 예정*/
     serve_dynamic(fd, filename, sbuf.st_size);
   }
-  
+
+}
+
+
+
+void read_requesthdrs(rio_t *rp){
+  /*rio의 각 줄을 할당하는 buf 객체*/
+  char buf[MAXLINE];
+
+  /*첫 번째 줄 읽기: request line => 별도 출력 필요 없음*/
+  rio_readlineb(&rp, buf, MAXLINE);
+  /*조건문: 해당 buf에 enter가 있을 때 까지*/
+  while(strcmp(buf, "\r\n")){
+    rio_readlineb(&rp, buf, MAXLINE);
+    printf("%s", buf);
+  }
+  return;
 }
