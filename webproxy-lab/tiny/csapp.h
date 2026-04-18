@@ -31,6 +31,7 @@
 
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */
+#define _POSIX_C_SOURCE 200809L
 #define DEF_MODE   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH
 #define DEF_UMASK  S_IWGRP|S_IWOTH
 /* $end createmasks */

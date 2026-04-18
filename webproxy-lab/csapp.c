@@ -22,6 +22,7 @@
  *   - rio_readnb: removed redundant EINTR check
  */
 /* $begin csapp.c */
+#define _POSIX_C_SOURCE 200809L
 #include "csapp.h"
 
 /************************** 
