@@ -21,4 +21,4 @@ echoclient.o: echoclient.c ../csapp.h
 	$(CC) $(CFLAGS) -c ../csapp.c -o ../csapp.o
 
 clean:
-	rm -f *~ *.o echoserver echoclient
+	rm -f *~ *.o echoserver echoclient ../csapp.o

@@ -35,9 +35,9 @@ int main(int argc, char **argv)
         Fputs(buf, stdout);
     }
 
+    printf("서버와 연결이 종료되었습니다.");
     Close(clientfd);
     exit(0);
-    printf("서버와 연결이 종료되었습니다.");
 }
 
 

@@ -37,8 +37,8 @@ int main(int argc, char **argv)
         echo(connfd);
         Close(connfd);
     }  
-    exit(0);
     printf("서버가 종료되었습니다.");
+    exit(0);
 }
 
 
