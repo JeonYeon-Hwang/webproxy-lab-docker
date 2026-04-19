@@ -57,7 +57,7 @@ void doit(int fd){
   /*상태 저장 구조체*/
   struct stat sbuf;
   /*파싱된 데이터 저장 변수들*/
-  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE];
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   /*uri 파싱 데이터 저장 변수들*/
   char filename[MAXLINE], cgiargs[MAXLINE];
   /*rio 읽기 버퍼 구조체*/
@@ -70,7 +70,7 @@ void doit(int fd){
   printf("다음 헤더를 받았습니다: %s", buf);
 
   /*buf => 각 변수에 분해 할당*/
-  sscanf(buf, "%s %s %s", method, uri);
+  sscanf(buf, "%s %s %s", method, uri, version);
 
   /*방어코드: GET만 유효함*/
   if(strcasecmp(method, "GET")){
@@ -126,4 +126,41 @@ void read_requesthdrs(rio_t *rp){
     printf("%s", buf);
   }
   return;
+}
+
+
+
+int parse_uri(char *uri, char *filename, char *cgiargs){
+  /*동적 컨텐츠를 요구하는 uri*/
+  if(strstr(uri, "cgi-bin")){
+    /*"?"가 있는 주소값을 반환*/
+    char *ptr = index(uri, '?');
+    if(ptr != NULL){
+      strcpy(cgiargs, ptr + 1);
+      /*uri를 "?"" 이전 까지만 읽도록 하기 위해*/
+      *ptr = '\0';
+    }
+    else strcpy(cgiargs, "");
+    /*filename 입력*/
+    snprintf(filename, MAXLINE, ".%s", uri);
+    return 0;
+  }
+  /*정적 컨텐츠를 요구하는 uri*/
+  else{
+    strcpy(cgiargs, "");
+    /*filename 입력*/
+    snprintf(filename, MAXLINE, ".%s", uri);
+    /*만약 uri가 그냥 "/" 이라면?*/
+    if(uri[strlen(uri) - 1] == '/'){
+      /*filename에 아래 문자열을 추가*/
+      strcat(filename, "home.html");
+    }
+    return 1;
+  }
+}
+
+
+
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg){
+
 }
