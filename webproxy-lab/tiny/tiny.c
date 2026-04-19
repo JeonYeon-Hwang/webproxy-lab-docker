@@ -74,7 +74,7 @@ void doit(int fd){
 
   /*방어코드: GET만 유효함*/
   if(strcasecmp(method, "GET")){
-    clienterror(fd, method, "505", "내장 기능에 없음", "Tiny 서버에서 지원하지 않는 기능입니다.");
+    clienterror(fd, method, "501", "Not implemented", "Tiny 서버에서 지원하지 않는 기능입니다.");
     return;
   }
 
@@ -85,7 +85,7 @@ void doit(int fd){
   is_static = parse_uri(uri, filename, cgiargs);
   /*파일 존재 여부 확인 => sbuf에 형식 & 권한 저장*/
   if(stat(filename, &sbuf) < 0){
-    clienterror(fd, filename, "404", "파일 없음", "Tiny 서버가 해당 파일을 찾지 못했습니다.");
+    clienterror(fd, filename, "404", "Not found", "Tiny 서버가 해당 파일을 찾지 못했습니다.");
     return;
   }
 
@@ -93,7 +93,7 @@ void doit(int fd){
   if(is_static){
     /*!regular 파일인가 or !읽기 권한이 있는가 */
     if(!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)){
-      clienterror(fd, filename, "403", "접근 금지됨", "Tiny 서버가 해당 파일을 읽을 수 없습니다.");
+      clienterror(fd, filename, "403", "Forbidden", "Tiny 서버가 해당 파일을 읽을 수 없습니다.");
       return;
     }
     /*추후 상세 작성 예정*/
@@ -103,7 +103,7 @@ void doit(int fd){
   else{
       /*!regular 파일인가 or !실행 권한이 있는가 */
     if(!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)){
-      clienterror(fd, filename, "403", "접근 금지됨", "Tiny 서버가 해당 CGI 프로그램을 실행시킬 수 없습니다.");
+      clienterror(fd, filename, "403", "Forbidden", "Tiny 서버가 해당 CGI 프로그램을 실행시킬 수 없습니다.");
       return;
     }
     /*추후 상세 작성 예정*/
@@ -162,5 +162,24 @@ int parse_uri(char *uri, char *filename, char *cgiargs){
 
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg){
+  /*사용할 변수 선언*/
+  char buf[MAXLINE], body[MAXBUF];
 
+  /*body 만들기: html 문서 형태*/
+  sprintf(body, "<html><title>Tiny Error</title>\r\n");
+  sprintf(body, "<body bgcolor=""ffffff"">\r\n");
+  sprintf(body, "%s: %s\r\n", errnum, shortmsg);
+  sprintf(body, "<p> %s: %s\r\n", longmsg, cause);
+  sprintf(body, "<hr><em> The Tiny Web server</em>\r\n");
+
+  /*header 작성 => fd를 통해 rio 객체로 소켓에 넣기*/
+  sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
+  Rio_writen(fd, buf, strlen(buf));
+  sprintf(buf, "Content-type: text/html\r\n");
+  Rio_writen(fd, buf, strlne(buf));
+  sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+  Rio_writen(fd, buf, strlen(buf));
+
+  /*body 주입 => 마찬가리조 fd와 rio를 통해 넣기*/
+  Rio_writen(fd, body, strlen(body));
 }
