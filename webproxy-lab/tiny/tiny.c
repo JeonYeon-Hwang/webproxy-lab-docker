@@ -15,6 +15,8 @@ void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+void generate_header(int fd,int filesize, int cases, int bodysize,
+                      char *code, char *accept, char *filetype);
 
 int main(int argc, char **argv)
 {
@@ -73,7 +75,7 @@ void doit(int fd){
 
   /*방어코드: GET만 유효함*/
   if(strcasecmp(method, "GET")){
-    clienterror(fd, method, "501", "Not implemented", "Tiny 서버에서 지원하지 않는 기능입니다.");
+    clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method.");
     return;
   }
 
@@ -84,7 +86,7 @@ void doit(int fd){
   is_static = parse_uri(uri, filename, cgiargs);
   /*파일 존재 여부 확인 => sbuf에 형식 & 권한 저장*/
   if(stat(filename, &sbuf) < 0){
-    clienterror(fd, filename, "404", "Not found", "Tiny 서버가 해당 파일을 찾지 못했습니다.");
+    clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file.");
     return;
   }
 
@@ -92,7 +94,7 @@ void doit(int fd){
   if(is_static){
     /*!regular 파일인가 or !읽기 권한이 있는가 */
     if(!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)){
-      clienterror(fd, filename, "403", "Forbidden", "Tiny 서버가 해당 파일을 읽을 수 없습니다.");
+      clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read this file.");
       return;
     }
     /*추후 상세 작성 예정*/
@@ -102,7 +104,7 @@ void doit(int fd){
   else{
       /*!regular 파일인가 or !실행 권한이 있는가 */
     if(!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)){
-      clienterror(fd, filename, "403", "Forbidden", "Tiny 서버가 해당 CGI 프로그램을 실행시킬 수 없습니다.");
+      clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program.");
       return;
     }
     /*추후 상세 작성 예정*/
@@ -162,7 +164,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs){
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg){
   /*사용할 변수 선언*/
-  char buf[MAXLINE], body[MAXBUF];
+  char body[MAXBUF];
 
   /*body 만들기: html 문서 형태*/
   sprintf(body, "<html><title>Tiny Error</title>\r\n"
@@ -173,12 +175,13 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
                 errnum, shortmsg, longmsg, cause);
 
   /*header 작성 => fd를 통해 rio 객체로 소켓에 넣기*/
-  sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-  Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Content-type: text/html\r\n");
-  Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
-  Rio_writen(fd, buf, strlen(buf));
+  // sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
+  // Rio_writen(fd, buf, strlen(buf));
+  // sprintf(buf, "Content-type: text/html\r\n");
+  // Rio_writen(fd, buf, strlen(buf));
+  // sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+  // Rio_writen(fd, buf, strlen(buf));
+  generate_header(fd, 0, 3, (int)strlen(body), errnum, shortmsg, 0);
 
   /*body 주입 => 마찬가리조 fd와 rio를 통해 넣기*/
   Rio_writen(fd, body, strlen(body));
@@ -189,24 +192,23 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void serve_static(int fd, char *filename, int filesize){
   /*사용할 변수 선언*/
   int srcfd;
-  char filetype[MAXLINE], buf[MAXBUF];
-  char *p, *bufs = malloc(filesize);
+  char filetype[MAXLINE];
+  char *bufs = malloc(filesize);
 
   /*파일 타입을 먼저 구하기*/
   get_filetype(filename, filetype);
   
   /*header 작성*/
-  p = buf;
-  p += sprintf(p, "HTTP/1.0 200 OK\r\n");
-  p += sprintf(p, "Server: Tiny Web Server\r\n");
-  p += sprintf(p, "Connection: Close\r\n");
-  p += sprintf(p, "Content-length: %d\r\n", filesize);
-  p += snprintf(p, MAXBUF - (p - buf), "Content-type: %s\r\n\r\n", filetype);
+  // p = buf;
+  // p += sprintf(p, "HTTP/1.0 200 OK\r\n");
+  // p += sprintf(p, "Server: Tiny Web Server\r\n");
+  // p += sprintf(p, "Connection: Close\r\n");
+  // p += sprintf(p, "Content-length: %d\r\n", filesize);
+  // p += snprintf(p, MAXBUF - (p - buf), "Content-type: %s\r\n\r\n", filetype);
   /*한꺼번에 rio를 통해 소켓에 보내기*/
-  Rio_writen(fd, buf, strlen(buf));
-  /*콘솔에 header 출력하기*/
-  printf("Response headers: \n");
-  printf("%s", buf);
+  // Rio_writen(fd, buf, strlen(buf));
+  /*generate header로 만들기*/
+  generate_header(fd, filesize, 1, 0, "200", "OK", filetype);
 
   /*파일 찾기 => 파일 식별자로 매핑*/
   srcfd = Open(filename, O_RDONLY, 0);
@@ -243,13 +245,14 @@ void get_filetype(char *filename, char *filetype){
 
 
 void serve_dynamic(int fd, char *filename, char *cgiargs){
-  char buf[MAXLINE], *emptylist[] = { NULL };
+  char *emptylist[] = { NULL };
 
   /*header 작성 => 소켓에 보내기*/
-  sprintf(buf, "HTTP/1.0 200 OK\r\n");
-  Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Server: Tiny Web Server\r\n");
-  Rio_writen(fd, buf, strlen(buf));
+  // sprintf(buf, "HTTP/1.0 200 OK\r\n");
+  // Rio_writen(fd, buf, strlen(buf));
+  // sprintf(buf, "Server: Tiny Web Server\r\n");
+  // Rio_writen(fd, buf, strlen(buf));
+  generate_header(fd, 0, 2, 0, "200", "OK", 0);
 
   /*자식 프로세서 만들기: fork*/
   /*if 구문 내: 자식 프로세스 실행부(독립된 공간임)*/
@@ -261,4 +264,38 @@ void serve_dynamic(int fd, char *filename, char *cgiargs){
     Execve(filename, emptylist, environ);
   }
   Wait(NULL);
+}
+
+
+
+void generate_header(int fd,int filesize, int cases, int bodysize, 
+                      char *code, char *accept, char *filetype){
+  char buf[MAXLINE], header_full[MAXLINE] = "";
+  
+  /*반복되는 header 생성을 함수로 줄이기*/
+  sprintf(buf, "HTTP/1.0 %s %s\r\n", code, accept);
+  strcat(header_full, buf);
+
+  /*static 용 header*/
+  if(cases == 1){
+    strcat(header_full, "Server: Tiny Web Server\r\n");
+    strcat(header_full, "Connection: Close\r\n");
+    sprintf(buf, "Content-length: %d", filesize);
+    strcat(header_full, buf);
+    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
+    strcat(header_full, buf);
+  }
+  /*error 용 header*/
+  else if(cases == 3){
+    strcat(header_full, "Content-type: text/html\r\n");
+    sprintf(buf, "Content-length: %d\r\n\r\n", bodysize);
+    strcat(header_full, buf);
+  }
+
+  /*한꺼번에 소켓이 보내기*/
+  Rio_writen(fd, header_full, strlen(header_full));
+
+  /*콘솔에 header 출력하기*/
+  printf("Response headers: \n");
+  printf("%s", header_full);
 }
