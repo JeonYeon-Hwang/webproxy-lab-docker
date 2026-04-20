@@ -174,13 +174,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
                 "<hr><em> The Tiny Web server</em>\r\n",
                 errnum, shortmsg, longmsg, cause);
 
-  /*header 작성 => fd를 통해 rio 객체로 소켓에 넣기*/
-  // sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-  // Rio_writen(fd, buf, strlen(buf));
-  // sprintf(buf, "Content-type: text/html\r\n");
-  // Rio_writen(fd, buf, strlen(buf));
-  // sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
-  // Rio_writen(fd, buf, strlen(buf));
+  /*generate header로 만들기*/
   generate_header(fd, 0, 3, (int)strlen(body), errnum, shortmsg, 0);
 
   /*body 주입 => 마찬가리조 fd와 rio를 통해 넣기*/
@@ -198,22 +192,11 @@ void serve_static(int fd, char *filename, int filesize){
   /*파일 타입을 먼저 구하기*/
   get_filetype(filename, filetype);
   
-  /*header 작성*/
-  // p = buf;
-  // p += sprintf(p, "HTTP/1.0 200 OK\r\n");
-  // p += sprintf(p, "Server: Tiny Web Server\r\n");
-  // p += sprintf(p, "Connection: Close\r\n");
-  // p += sprintf(p, "Content-length: %d\r\n", filesize);
-  // p += snprintf(p, MAXBUF - (p - buf), "Content-type: %s\r\n\r\n", filetype);
-  /*한꺼번에 rio를 통해 소켓에 보내기*/
-  // Rio_writen(fd, buf, strlen(buf));
   /*generate header로 만들기*/
   generate_header(fd, filesize, 1, 0, "200", "OK", filetype);
 
   /*파일 찾기 => 파일 식별자로 매핑*/
   srcfd = Open(filename, O_RDONLY, 0);
-  /*MMU(메모리 장부)에 어떤 형태로 사용될지 기록 => srcp에 매핑*/
-  //srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
 
   /*malloc으로 메모리 확보 => readn으로 읽기*/
   Rio_readn(srcfd, bufs, filesize);
@@ -247,11 +230,6 @@ void get_filetype(char *filename, char *filetype){
 void serve_dynamic(int fd, char *filename, char *cgiargs){
   char *emptylist[] = { NULL };
 
-  /*header 작성 => 소켓에 보내기*/
-  // sprintf(buf, "HTTP/1.0 200 OK\r\n");
-  // Rio_writen(fd, buf, strlen(buf));
-  // sprintf(buf, "Server: Tiny Web Server\r\n");
-  // Rio_writen(fd, buf, strlen(buf));
   generate_header(fd, 0, 2, 0, "200", "OK", 0);
 
   /*자식 프로세서 만들기: fork*/
