@@ -167,10 +167,10 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
   /*body 만들기: html 문서 형태*/
   sprintf(body, "<html><title>Tiny Error</title>\r\n");
-  sprintf(body, "<body bgcolor=""ffffff"">\r\n");
-  sprintf(body, "%s: %s\r\n", errnum, shortmsg);
-  sprintf(body, "<p> %s: %s\r\n", longmsg, cause);
-  sprintf(body, "<hr><em> The Tiny Web server</em>\r\n");
+  sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
+  sprintf(body, "%s%s: %s\r\n",  body, errnum, shortmsg);
+  sprintf(body, "%s<p> %s: %s\r\n", body, longmsg, cause);
+  sprintf(body, "%s<hr><em> The Tiny Web server</em>\r\n", body);
 
   /*header 작성 => fd를 통해 rio 객체로 소켓에 넣기*/
   sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
@@ -182,4 +182,40 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
   /*body 주입 => 마찬가리조 fd와 rio를 통해 넣기*/
   Rio_writen(fd, body, strlen(body));
+}
+
+
+
+void serve_static(int fd, char *filename, int filesize){
+  /*사용할 변수 선언*/
+  int srcfd;
+  char *srcp, filetype[MAXLINE], buf[MAXBUF];
+
+  /*header 작성*/
+  get_filetype(filename, filetype);
+  sprintf(buf, "HTTP/1.0 200 OK\r\n");
+  sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+  sprintf(buf, "%sConnection: Close\r\n", buf);
+  sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
+  sprintf(buf, "%sContent-type: %d\r\n", buf, filetype);
+  /*한꺼번에 rio를 통해 소켓에 보내기*/
+  Rio_writen(fd, buf, strlen(buf));
+  /*콘솔에 header 출력하기*/
+  printf("Response headers: \n");
+  printf("%s", buf);
+
+  /*파일 찾기 => 파일 식별자로 매핑*/
+  srcfd = Open(filename, O_RDONLY, 0);
+  /*MMU(메모리 장부)에 어떤 형태로 사용될지 기록 => srcp에 매핑*/
+  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+  close(srcfd);
+  /*소켓에 해당 내용 보내기*/
+  Rio_writen(fd, srcp, filesize);
+  Munmap(srcp, filesize);
+}
+
+
+
+void get_filetype(char *filename, char *filetype){
+  
 }
