@@ -107,7 +107,7 @@ void doit(int fd){
       return;
     }
     /*추후 상세 작성 예정*/
-    serve_dynamic(fd, filename, sbuf.st_size);
+    serve_dynamic(fd, filename, cgiargs);
   }
 
 }
@@ -119,11 +119,11 @@ void read_requesthdrs(rio_t *rp){
   char buf[MAXLINE];
 
   /*첫 번째 줄 읽기: request line => 별도 출력 필요 없음*/
-  rio_readlineb(&rp, buf, MAXLINE);
+  Rio_readlineb(rp, buf, MAXLINE);
   /*조건문: 해당 buf에 enter가 있을 때 까지*/
   while(strcmp(buf, "\r\n")){
-    rio_readlineb(&rp, buf, MAXLINE);
     printf("%s", buf);
+    Rio_readlineb(rp, buf, MAXLINE); 
   }
   return;
 }
@@ -166,17 +166,18 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
   char buf[MAXLINE], body[MAXBUF];
 
   /*body 만들기: html 문서 형태*/
-  sprintf(body, "<html><title>Tiny Error</title>\r\n");
-  sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
-  sprintf(body, "%s%s: %s\r\n",  body, errnum, shortmsg);
-  sprintf(body, "%s<p> %s: %s\r\n", body, longmsg, cause);
-  sprintf(body, "%s<hr><em> The Tiny Web server</em>\r\n", body);
+  sprintf(body, "<html><title>Tiny Error</title>\r\n"
+                "<body bgcolor=\"ffffff\">\r\n"
+                "%s: %s\r\n"
+                "<p> %s: %s\r\n"
+                "<hr><em> The Tiny Web server</em>\r\n",
+                errnum, shortmsg, longmsg, cause);
 
   /*header 작성 => fd를 통해 rio 객체로 소켓에 넣기*/
   sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Content-type: text/html\r\n");
-  Rio_writen(fd, buf, strlne(buf));
+  Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
   Rio_writen(fd, buf, strlen(buf));
 
@@ -190,16 +191,18 @@ void serve_static(int fd, char *filename, int filesize){
   /*사용할 변수 선언*/
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
+  char *p;
 
   /*파일 타입을 먼저 구하기*/
   get_filetype(filename, filetype);
   
   /*header 작성*/
-  sprintf(buf, "HTTP/1.0 200 OK\r\n");
-  sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
-  sprintf(buf, "%sConnection: Close\r\n", buf);
-  sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
-  sprintf(buf, "%sContent-type: %d\r\n", buf, filetype);
+  p = buf;
+  p += sprintf(p, "HTTP/1.0 200 OK\r\n");
+  p += sprintf(p, "Server: Tiny Web Server\r\n");
+  p += sprintf(p, "Connection: Close\r\n");
+  p += sprintf(p, "Content-length: %d\r\n", filesize);
+  p += snprintf(p, MAXBUF - (p - buf), "Content-type: %s\r\n\r\n", filetype);
   /*한꺼번에 rio를 통해 소켓에 보내기*/
   Rio_writen(fd, buf, strlen(buf));
   /*콘솔에 header 출력하기*/
@@ -236,24 +239,21 @@ void get_filetype(char *filename, char *filetype){
 
 void serve_dynamic(int fd, char *filename, char *cgiargs){
   char buf[MAXLINE], *emptylist[] = { NULL };
-  pid_t pid;
 
   /*header 작성 => 소켓에 보내기*/
-  sprintf(buf, "HTTP/1.0 200 OK\r\r");
-  sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+  sprintf(buf, "HTTP/1.0 200 OK\r\n");
+  Rio_writen(fd, buf, strlen(buf));
+  sprintf(buf, "Server: Tiny Web Server\r\n\r\n");
   Rio_writen(fd, buf, strlen(buf));
 
   /*자식 프로세서 만들기: fork*/
   /*if 구문 내: 자식 프로세스 실행부(독립된 공간임)*/
-  if((pid = fork()) == 0){
+  if(Fork() == 0){
     /*자식 프로세서 환경변수 설정*/
     setenv("QUERY_STRING", cgiargs, 1);
     Dup2(fd, STDOUT_FILENO);
     /*이제 자식 프로세서 실행*/
     Execve(filename, emptylist, environ);
   }
-  /*만들기를 실패할 경우*/
-  else{
-    unix_error("Fork error");
-  }
+  Wait(NULL);
 }
