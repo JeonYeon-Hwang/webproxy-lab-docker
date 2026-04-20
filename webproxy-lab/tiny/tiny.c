@@ -14,8 +14,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
-void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
-                 char *longmsg);
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 int main(int argc, char **argv)
 {
@@ -190,8 +189,8 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void serve_static(int fd, char *filename, int filesize){
   /*사용할 변수 선언*/
   int srcfd;
-  char *srcp, filetype[MAXLINE], buf[MAXBUF];
-  char *p;
+  char filetype[MAXLINE], buf[MAXBUF];
+  char *p, *bufs = malloc(filesize);
 
   /*파일 타입을 먼저 구하기*/
   get_filetype(filename, filetype);
@@ -212,11 +211,15 @@ void serve_static(int fd, char *filename, int filesize){
   /*파일 찾기 => 파일 식별자로 매핑*/
   srcfd = Open(filename, O_RDONLY, 0);
   /*MMU(메모리 장부)에 어떤 형태로 사용될지 기록 => srcp에 매핑*/
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+  //srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+
+  /*malloc으로 메모리 확보 => readn으로 읽기*/
+  Rio_readn(srcfd, bufs, filesize);
   close(srcfd);
   /*소켓에 해당 내용 보내기*/
-  Rio_writen(fd, srcp, filesize);
-  Munmap(srcp, filesize);
+  Rio_writen(fd, bufs, filesize);
+  free(bufs);
+  // Munmap(srcp, filesize);
 }
 
 
@@ -231,6 +234,8 @@ void get_filetype(char *filename, char *filetype){
     strcpy(filetype, "image/png");
   else if(strstr(filename, ".jpg"))
     strcpy(filetype, "image/jpeg");
+  else if(strstr(filename, ".mpg"))
+    strcpy(filetype, "video/mpeg");
   else
     strcpy(filetype, "text/plain");
 }
@@ -243,7 +248,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs){
   /*header 작성 => 소켓에 보내기*/
   sprintf(buf, "HTTP/1.0 200 OK\r\n");
   Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Server: Tiny Web Server\r\n\r\n");
+  sprintf(buf, "Server: Tiny Web Server\r\n");
   Rio_writen(fd, buf, strlen(buf));
 
   /*자식 프로세서 만들기: fork*/
