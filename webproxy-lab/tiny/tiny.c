@@ -191,8 +191,10 @@ void serve_static(int fd, char *filename, int filesize){
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
 
-  /*header 작성*/
+  /*파일 타입을 먼저 구하기*/
   get_filetype(filename, filetype);
+  
+  /*header 작성*/
   sprintf(buf, "HTTP/1.0 200 OK\r\n");
   sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
   sprintf(buf, "%sConnection: Close\r\n", buf);
@@ -217,5 +219,41 @@ void serve_static(int fd, char *filename, int filesize){
 
 
 void get_filetype(char *filename, char *filetype){
-  
+  /*파일 형식 입력*/
+  if(strstr(filename, ".html"))
+    strcpy(filetype, "text/html");
+  else if(strstr(filename, ".gif"))
+    strcpy(filetype, "image.gif");
+  else if(strstr(filename, ".png"))
+    strcpy(filetype, "image/png");
+  else if(strstr(filename, ".jpg"))
+    strcpy(filetype, "image/jpeg");
+  else
+    strcpy(filetype, "text/plain");
+}
+
+
+
+void serve_dynamic(int fd, char *filename, char *cgiargs){
+  char buf[MAXLINE], *emptylist[] = { NULL };
+  pid_t pid;
+
+  /*header 작성 => 소켓에 보내기*/
+  sprintf(buf, "HTTP/1.0 200 OK\r\r");
+  sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+  Rio_writen(fd, buf, strlen(buf));
+
+  /*자식 프로세서 만들기: fork*/
+  /*if 구문 내: 자식 프로세스 실행부(독립된 공간임)*/
+  if((pid = fork()) == 0){
+    /*자식 프로세서 환경변수 설정*/
+    setenv("QUERY_STRING", cgiargs, 1);
+    Dup2(fd, STDOUT_FILENO);
+    /*이제 자식 프로세서 실행*/
+    Execve(filename, emptylist, environ);
+  }
+  /*만들기를 실패할 경우*/
+  else{
+    unix_error("Fork error");
+  }
 }
