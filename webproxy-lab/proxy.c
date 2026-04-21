@@ -11,6 +11,7 @@ static const char *user_agent_hdr =
     "Firefox/10.0.3\r\n";
 
 void doit(int connfd, char *host);
+void parse_uri(char *uri, char *host, char *port, char *path);
 void generate_header(char *request_buf, char *hostname, char *port, char *path);
 void read_requesthdrs(rio_t *rp);
     
@@ -50,8 +51,8 @@ void doit(int connfd, char *hostname){
   /*tiny에게 클라이언트 처럼 연결 요청을 하기*/
   /*변수 선언부*/
   int serverfd, n;
-  char *tiny_port = "8000";
-  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE], path[MAXLINE];
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], 
+        version[MAXLINE], path[MAXLINE], tiny_port[MAXLINE];
   char request_buf[MAXLINE], response_buf[MAXLINE];
   rio_t rio, server_rio;
 
@@ -65,7 +66,7 @@ void doit(int connfd, char *hostname){
   printf("\n");
 
   /*uri => path*/
-  strcpy(path, uri);
+  parse_uri(uri, hostname, tiny_port, path);
 
   /*Tiny와 연결할 소켓 생성(본인은 클라이언트로 act)*/
   serverfd = Open_clientfd(hostname, tiny_port);
@@ -73,6 +74,7 @@ void doit(int connfd, char *hostname){
     printf("Failed to make serverfd");
     return;
   }
+  
 
   /*Tiny 용 헤더 생성 => bufs에 넣기*/
   generate_header(request_buf, hostname, tiny_port, path);
@@ -88,6 +90,45 @@ void doit(int connfd, char *hostname){
   }
   printf("Response Loop Finished!\n");
   Close(serverfd);
+}
+
+
+
+void parse_uri(char *uri, char *host, char *port, char* path){
+  char *ptr = strstr(uri, "://");
+  
+  /*상용 사이트 접속을 요청할 경우*/
+  if(ptr){
+    ptr += 3;
+
+    char *path_ptr = strchr(ptr, '/');
+    if(path_ptr){
+      strcpy(path, path_ptr);
+      /*중간의 "/"를 잘라서 path_ptr가 host 만 읽도록 함*/
+      *path_ptr = '\0';
+    }else{
+      strcpy(path, "/");
+    }
+
+    /*요건 아직 이해가 안감.ㅠㅠ*/
+    char *port_ptr = strchr(ptr, ':');
+    if (port_ptr) {
+        strcpy(port, port_ptr + 1);
+        *port_ptr = '\0';
+    } else {
+        strcpy(port, "80"); 
+    }
+
+    strcpy(host, ptr);
+  }
+  /*tiny 서버 접속을 요청할 경우*/
+  else{
+    strcpy(path, uri);
+    strcpy(host, "localhost");
+    strcpy(port, "8000");
+  }
+
+  printf("Parsed: host=%s, port=%s, path=%s\n", host, port, path);
 }
 
 
