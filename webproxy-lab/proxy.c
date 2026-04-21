@@ -5,6 +5,12 @@
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
 
+typedef struct {
+  int connfd;
+  char hostname[MAXLINE];
+} thread_arg_t;
+
+
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
@@ -14,6 +20,7 @@ void doit(int connfd, char *host);
 void parse_uri(char *uri, char *host, char *port, char *path);
 void generate_header(char *request_buf, char *hostname, char *port, char *path);
 void read_requesthdrs(rio_t *rp);
+void *thread_main(void *vargp);
     
 int main(int argc, char **argv)
 {
@@ -40,8 +47,14 @@ int main(int argc, char **argv)
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
     printf("Server accepts a client: (%s, %s)\n", hostname, port);
     
-    doit(connfd, hostname);
-    Close(connfd);
+    /*구조체 메모리 할당: connfd, hostname => 값 채워넣기*/
+    thread_arg_t *argp = malloc(sizeof(thread_arg_t));
+    argp->connfd = connfd;
+    strcpy(argp->hostname, hostname);
+
+    /*스레드 생성(식별자 생성) => 할당*/
+    pthread_t tid;
+    Pthread_create(&tid, NULL, thread_main, argp);
   }
 }
 
@@ -51,8 +64,9 @@ void doit(int connfd, char *hostname){
   /*tiny에게 클라이언트 처럼 연결 요청을 하기*/
   /*변수 선언부*/
   int serverfd, n;
-  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], 
-        version[MAXLINE], path[MAXLINE], tiny_port[MAXLINE];
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+
+  char host[MAXLINE], port[MAXLINE], path[MAXLINE];
   char request_buf[MAXLINE], response_buf[MAXLINE];
   rio_t rio, server_rio;
 
@@ -66,10 +80,10 @@ void doit(int connfd, char *hostname){
   printf("\n");
 
   /*uri => path*/
-  parse_uri(uri, hostname, tiny_port, path);
+  parse_uri(uri, host, port, path);
 
   /*Tiny와 연결할 소켓 생성(본인은 클라이언트로 act)*/
-  serverfd = Open_clientfd(hostname, tiny_port);
+  serverfd = Open_clientfd(host, port);
   if(serverfd < 0){
     printf("Failed to make serverfd");
     return;
@@ -77,13 +91,13 @@ void doit(int connfd, char *hostname){
   
 
   /*Tiny 용 헤더 생성 => bufs에 넣기*/
-  generate_header(request_buf, hostname, tiny_port, path);
+  generate_header(request_buf, host, port, path);
   /*request_buf 내용을 serverfd 소켓에 보내기*/
   Rio_writen(serverfd, request_buf, strlen(request_buf));
 
   /*Tiny => 프록시 응답 대기 및 읽기*/
   Rio_readinitb(&server_rio, serverfd);
-  while ((n = rio_readnb(&server_rio, response_buf, MAXLINE)) != 0){
+  while ((n = rio_readnb(&server_rio, response_buf, MAXLINE)) > 0){
     /*클라이언트 connfd에 전달(가공 없이)*/
     printf("Received %d bytes from Tiny\n", n);
     Rio_writen(connfd, response_buf, n);
@@ -147,12 +161,31 @@ void read_requesthdrs(rio_t *rp){
   /*rio의 각 줄을 할당하는 buf 객체*/
   char buf[MAXLINE];
 
-  /*첫 번째 줄 읽기: request line => 별도 출력 필요 없음*/
-  Rio_readlineb(rp, buf, MAXLINE);
   /*조건문: 해당 buf에 enter가 있을 때 까지*/
-  while(strcmp(buf, "\r\n")){
-    printf("%s", buf);
+  while(1){
     Rio_readlineb(rp, buf, MAXLINE); 
+    if(strcmp(buf, "\r\n") == 0)
+      break;
+    printf("%s", buf);
   }
   return;
+}
+
+
+
+void *thread_main(void *vargp){
+  /*식별자 꺼내기 => 구조분해*/
+  thread_arg_t *argp = (thread_arg_t *)vargp;
+  int connfd = argp->connfd;
+  char hostname[MAXLINE];
+  strcpy(hostname, argp->hostname);
+  /*자동 반납 설정*/
+  Pthread_detach(pthread_self());
+  /*구조체 메모리 해제*/
+  Free(vargp);
+
+  /*실행부*/
+  doit(connfd, hostname);
+  Close(connfd);
+  return NULL;
 }
