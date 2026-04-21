@@ -10,9 +10,9 @@ static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
     "Firefox/10.0.3\r\n";
 
-void doit(int connfd, char *host, char *port);
-void parse_uri(char *uri, char *hostname, char *path, char *port);
-void generate_header(char *bufs, char *hostname, char *port, char *path);
+void doit(int connfd, char *host);
+void generate_header(char *request_buf, char *hostname, char *port, char *path);
+void read_requesthdrs(rio_t *rp);
     
 int main(int argc, char **argv)
 {
@@ -39,52 +39,79 @@ int main(int argc, char **argv)
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
     printf("Server accepts a client: (%s, %s)\n", hostname, port);
     
-    doit(connfd, hostname, port);
+    doit(connfd, hostname);
     Close(connfd);
   }
 }
 
 
 
-void doit(int connfd, char *hostname, char *port){
+void doit(int connfd, char *hostname){
   /*tiny에게 클라이언트 처럼 연결 요청을 하기*/
   /*변수 선언부*/
-  int serverfd;
-  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-  char host[MAXLINE], port[MAXLINE], path[MAXLINE];
-  char bufs[MAXLINE];
-  rio_t rio;
+  int serverfd, n;
+  char *tiny_port = "8000";
+  char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE], path[MAXLINE];
+  char request_buf[MAXLINE], response_buf[MAXLINE];
+  rio_t rio, server_rio;
 
   /*클라이언트 요청 처리*/
-  /*buf에 요청 모두 넣기*/
+  /*buf에 요청 모두 넣기 => rio에 할당*/
   rio_readinitb(&rio, connfd);
   rio_readlineb(&rio, buf, MAXLINE);
   sscanf(buf, "%s %s %s", method, uri, version);
-  printf("Header accepted: %s", buf);
+  printf("Request headers:\n");
+  read_requesthdrs(&rio);   
+  printf("\n");
+
+  /*uri => path*/
+  strcpy(path, uri);
 
   /*Tiny와 연결할 소켓 생성(본인은 클라이언트로 act)*/
-  serverfd = Open_clientfd(hostname, port);
+  serverfd = Open_clientfd(hostname, tiny_port);
   if(serverfd < 0){
     printf("Failed to make serverfd");
     return;
   }
 
   /*Tiny 용 헤더 생성 => bufs에 넣기*/
-  generate_header(bufs, hostname, port, path);
-  /*bufs 내용을 serverfd 소켓에 보내기*/
-  Rio_writen(serverfd, bufs, strlne(bufs));
+  generate_header(request_buf, hostname, tiny_port, path);
+  /*request_buf 내용을 serverfd 소켓에 보내기*/
+  Rio_writen(serverfd, request_buf, strlen(request_buf));
 
+  /*Tiny => 프록시 응답 대기 및 읽기*/
+  Rio_readinitb(&server_rio, serverfd);
+  while ((n = rio_readnb(&server_rio, response_buf, MAXLINE)) != 0){
+    /*클라이언트 connfd에 전달(가공 없이)*/
+    printf("Received %d bytes from Tiny\n", n);
+    Rio_writen(connfd, response_buf, n);
+  }
+  printf("Response Loop Finished!\n");
   Close(serverfd);
 }
 
 
 
-void generate_header(char *bufs, char *hostname, char *port, char *path){
-  char temp_header[MAXLINE];
-  
-  sprintf(temp_header, "GET /%s HTTP/1.0\r\n", path);
-  strcat(bufs, temp_header);
-  strcat(bufs, "Host: localhost:8000\r\n");
-  strcat(bufs, "Connection: close");
-  strcat(bufs, "Proxy-Connection: close");
+void generate_header(char *request_buf, char *hostname, char *port, char *path){
+  sprintf(request_buf, "GET /%s HTTP/1.0\r\n", path);
+  sprintf(request_buf + strlen(request_buf), "Host: %s:%s\r\n", hostname, port);
+  sprintf(request_buf + strlen(request_buf), "%s", user_agent_hdr);
+  sprintf(request_buf + strlen(request_buf), "Connection: close\r\n");
+  sprintf(request_buf + strlen(request_buf), "Proxy-Connection: close\r\n\r\n");
+}
+
+
+
+void read_requesthdrs(rio_t *rp){
+  /*rio의 각 줄을 할당하는 buf 객체*/
+  char buf[MAXLINE];
+
+  /*첫 번째 줄 읽기: request line => 별도 출력 필요 없음*/
+  Rio_readlineb(rp, buf, MAXLINE);
+  /*조건문: 해당 buf에 enter가 있을 때 까지*/
+  while(strcmp(buf, "\r\n")){
+    printf("%s", buf);
+    Rio_readlineb(rp, buf, MAXLINE); 
+  }
+  return;
 }
