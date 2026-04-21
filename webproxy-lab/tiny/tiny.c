@@ -34,6 +34,7 @@ int main(int argc, char **argv)
 
   /*listen 소켓 생성 후 => listenfd에 바인딩*/
   listenfd = Open_listenfd(argv[1]);
+  printf("Server listening on: %s ...\n", argv[1]);
   while (1)
   {
     clientlen = sizeof(clientaddr);
@@ -43,7 +44,7 @@ int main(int argc, char **argv)
     /*클라이언트 정보 가져오기*/
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE,
                 0);
-    printf("다음 클라이언트의 접속 요청을 수락함: (%s, %s)\n", hostname, port);
+    printf("Server accepts a client: (%s, %s)\n", hostname, port);
     /*하나의 HTTP 트랜잭션을 처리함*/
     doit(connfd);  
     Close(connfd); 
@@ -68,7 +69,6 @@ void doit(int fd){
   /*rio에 fd 바인딩(초기화) => buf에 할당*/
   rio_readinitb(&rio, fd);
   rio_readlineb(&rio, buf, MAXLINE);
-  printf("다음 헤더를 받았습니다: %s", buf);
 
   /*buf => 각 변수에 분해 할당*/
   sscanf(buf, "%s %s %s", method, uri, version);
@@ -80,7 +80,9 @@ void doit(int fd){
   }
 
   /*읽고 콘솔에 찍기*/
+  printf("Request headers:\n");
   read_requesthdrs(&rio);
+  printf("\n");
 
   /*uri => filename & cgiargs로 파싱 & static 반환*/
   is_static = parse_uri(uri, filename, cgiargs);
